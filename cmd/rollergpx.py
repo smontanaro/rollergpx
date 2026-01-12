@@ -108,6 +108,8 @@ def main():
     options = parse_args()
 
     ride = gpx.read_gpx("/dev/stdin")
+    # For more straightforward access. The gpx module doesn't currently
+    # populate this attribute, just leaves it an empty list.
     ride.wpt = ride.trk[0][0]
 
     # elevate the cadence value to a top level attribute (hopefully will change
@@ -134,7 +136,9 @@ def main():
         wpt2.lon = long
         wpt1 = wpt2
 
-    # have to undo the .wpt shortcut (again, hopefully this won't be necessary indefinitely)
+    # have to undo the .wpt shortcut (again, hopefully this won't be necessary
+    # indefinitely). If not cleared, the entire list is written into the <xml>
+    # header, and not very beautifully.
     ride.wpt = []
     ride.write_gpx("/dev/stdout")
 
