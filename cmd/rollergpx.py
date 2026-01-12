@@ -4,25 +4,7 @@
 Read a GPX file and produce a new one with details from a cadence-enhanced
 roller ride.
 
-Lots of people have smart trainers these days. I only have rollers, but in the
-presence of something which can track cadence and knowledge of my gearing, I
-can calculate the distance ridden during a roller session. My setup happens to
-be a Wahoo Elemnt Bolt v1 and a Wahoo Tickr X heart rate monitor (which also
-measures cadence), but I suppose anything which records your time and cadence
-will suffice.
-
-To make this work, you need gearing details. I use Sheldon Brown's gain ratio
-and crank length to translate cadence into linear velocity:
-
-https://www.sheldonbrown.com/gain.html
-
-Inputs to that calculation are the crank arm length, tire circumference, and
-chainring and sprocket tooth counts. Note that this will only work if you don't
-shift gears!!! That works for me because I can rarely tolerate the boredom of
-riding in my basement for more than 30 minutes or so. My goal here is simply to
-have something plausible to upload to Strava so my January and February
-mileages don't look so bad. YMMV.
-
+See README.md for more details.
 """
 
 import argparse
