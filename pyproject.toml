@@ -1,0 +1,29 @@
+[build-system]
+requires = [
+    "setuptools>=63.0",
+    "trove-classifiers",
+    "wheel",
+]
+
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rollergpx"
+version = "0.0.1"
+description = "Add distance details to a GPX file generated from a roller ride"
+authors = [
+    { name = "Skip Montanaro", email = "skip.montanaro@gmail.com" },
+]
+requires-python = ">=3.11"
+
+dependencies = [
+    "gpx",
+    "haversine",
+]
+
+[tool.setuptools.packages.find]
+include = ["cmd"]
+
+[project.scripts]
+    rollergpx = "rollergpx.rollergpx:main"
+    gpxtolatlong = "rollergpx.gpxtolatlong:main"
