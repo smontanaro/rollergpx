@@ -15,7 +15,7 @@ import sys
 import gpx
 from haversine import haversine
 
-def parse_args(args=None):
+def parse_args():
     parser = argparse.ArgumentParser(
         description="Augment a GPX file with distance details",
         allow_abbrev=False)
@@ -32,11 +32,10 @@ def parse_args(args=None):
         "--course", "-C", default="",
         help="CSV file containing lat/long/distance details for the course")
 
-    options = parser.parse_args(args)
-
-    return options
+    return parser.parse_args()
 
 
+# pylint: disable=too-few-public-methods
 class Course:
     "Hold lat/long details of a course and progress through it."
     def __init__(self, course_csv):
@@ -105,8 +104,8 @@ class Course:
 
         return self.current
 
-def main(args=None):
-    options = parse_args(args)
+def main():
+    options = parse_args()
 
     ride = gpx.read_gpx("/dev/stdin")
     ride.wpt = ride.trk[0][0]
