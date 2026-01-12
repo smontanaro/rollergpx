@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rollergpx"
-version = "0.0.1"
+version = "0.0.2"
 description = "Add distance details to a GPX file generated from a roller ride"
 authors = [
     { name = "Skip Montanaro", email = "skip.montanaro@gmail.com" },
@@ -17,7 +17,7 @@ authors = [
 requires-python = ">=3.11"
 
 dependencies = [
-    "gpx",
+    "gpx=2026.1.0",             # pin this, as it seems to be undergoing change
     "haversine",
 ]
 
