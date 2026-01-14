@@ -33,10 +33,10 @@ and February mileages don't look so bad. YMMV.
 
 ## TODO
 
-- Allow gear changes using the "lap" feature on my Wahoo
+- Allow gear changes using the "lap" feature on my Wahoo (maybe)
 - Add some tests
     - In particular, I need to make sure I have the crossover from end to
       start done right. It's quite possible I'm losing or adding some
       distance.
-- Make `gpxtolatlong` a bit more Python-app-like.
-- Do the meta stuff dance (build, install, dependencies, etc).
+- Namespace names on output are incorrect. I still have to zap "ns0"
+  references.
