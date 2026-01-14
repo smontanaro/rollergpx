@@ -17,7 +17,6 @@ authors = [
 requires-python = ">=3.11"
 
 dependencies = [
-    "gpx==2026.1.0",             # pin this, as it seems to be undergoing change
     "haversine",
 ]
 
