@@ -9,11 +9,15 @@ See README.md for more details.
 
 import argparse
 import csv
+import datetime
 import math
 import sys
+import xml.etree.ElementTree as ET
 
-import gpx
+import dateutil.parser
 from haversine import haversine
+
+EPOCH = datetime.datetime.fromtimestamp(0)
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -21,7 +25,7 @@ def parse_args():
         allow_abbrev=False)
 
     parser.add_argument(
-        "--crank", "-c", type=int, default=170,
+        "--crank-length", "-c", type=int, default=170,
         help="Crank arm length in millimeters")
 
     parser.add_argument(
@@ -32,13 +36,22 @@ def parse_args():
         "--course", "-C", default="",
         help="CSV file containing lat/long/distance details for the course")
 
+    parser.add_argument(
+        "--verbose", "-v", default=False, action='store_true',
+        help="add a bit of debugging output")
+
     return parser.parse_args()
 
 
-# pylint: disable=too-few-public-methods
 class Course:
     "Hold lat/long details of a course and progress through it."
-    def __init__(self, course_csv):
+    def __init__(self, course_csv, dist_per_rev, verbose):
+        self.last_cadence = 0
+        self.last_stamp = EPOCH
+        self.dist_per_rev = dist_per_rev
+        self.nmoves = 0
+        self.verbose = verbose
+
         if not course_csv:
             # no course data, give a default in Lake Michigan near Evanston
             self.points = [
@@ -79,69 +92,109 @@ class Course:
         self.out_and_back = haversine(self.current, last) >= 1
 
     def move(self, distance):
-        "Move along the course by the set distance (km)."
+        "Move along the course by the given distance (km)."
         # add distance to the position, following the course, returning the
         # new position
-        points = self.points
-        while distance:
-            pt1 = self.current
-            pt2 = (points[self.next]["lat"], points[self.next]["long"])
-            next_waypoint = haversine(pt1, pt2)
-            if next_waypoint < distance:
-                distance -= next_waypoint
-                self.next += 1
-                self.current = pt2
-                if self.next == len(points):
-                    if self.out_and_back:
-                        self.points = list(reversed(self.points))
-                    self.next = 0
-            else:
-                ratio = distance / next_waypoint
-                distance = 0
-                clat = pt1[0] + (pt2[0] - pt1[0]) * ratio
-                clon = pt1[1] + (pt2[1] - pt1[1]) * ratio
-                self.current = (clat, clon)
+        self.nmoves += 1
+        if distance:
+            points = self.points
+            while distance:
+                pt1 = self.current
+                pt2 = (points[self.next]["lat"], points[self.next]["long"])
+                next_waypoint = haversine(pt1, pt2)
+                if next_waypoint <= distance:
+                    # remaining distance at least reaches pt2. Adjust and
+                    # continue.
+                    distance -= next_waypoint
+                    self.current = pt2
+                    self.next += 1
+                    if self.next == len(points):
+                        if self.verbose:
+                            print(f"end of course, next=={self.next},"
+                                  f" moves={self.nmoves}",
+                                  file=sys.stderr)
+                        if self.out_and_back:
+                            # flip and go the other way
+                            if self.verbose:
+                                print("out and back", file=sys.stderr)
+                            self.points = list(reversed(self.points))
+                        self.next = 0
+                else:
+                    # distance from pt1 to pt2 is greater than the remaining
+                    # distance. Adjust our current position to that fractional
+                    # distance, but don't advance self.next, then return.
+                    frac = distance / next_waypoint
+                    assert 0.0 < frac <= 1.0
+                    distance = 0
+                    clat = pt1[0] + (pt2[0] - pt1[0]) * frac
+                    clon = pt1[1] + (pt2[1] - pt1[1]) * frac
+                    self.current = (clat, clon)
 
-        return self.current
+        return [str(x) for x in self.current]
+
+    def cadence(self, trkpt):
+        cadence = 0
+        cadstr = self._child_tag_text(trkpt, "cad").strip()
+        if cadstr:
+            cadence = int(cadstr)
+        return cadence
+
+    def timestamp(self, trkpt):
+        dt = EPOCH
+        dtstr = self._child_tag_text(trkpt, "time").strip()
+        if dtstr:
+            dt = dateutil.parser.parse(dtstr)
+        return dt
+
+    def _child_tag_text(self, trkpt, tag):
+        for child in trkpt.iterfind(f".//{{*}}{tag}"):
+            return child.text
+        return ""
+
+    def update_lat_long(self, trkpt):
+        "adjust the lat long details for the trkpt arg."
+        stamp = self.timestamp(trkpt)
+        assert stamp
+        if self.last_stamp == EPOCH:
+            # first time through
+            self.last_stamp = stamp
+            self.last_cadence = self.cadence(trkpt)
+            (trkpt.attrib["lat"],
+             trkpt.attrib["lon"]) = (str(self.points[0]["lat"]),
+                                     str(self.points[0]["long"]))
+            return
+
+        cadence = self.cadence(trkpt)
+        delta_t = (stamp - self.last_stamp).total_seconds() * 60
+        mean_cadence = (cadence + self.last_cadence) / 2
+        revs = mean_cadence / delta_t
+        # km
+        distance = revs * self.dist_per_rev
+        (trkpt.attrib["lat"],
+         trkpt.attrib["lon"]) = self.move(distance)
+
+        # set up for the next move
+        self.last_stamp = stamp
+        self.last_cadence = cadence
+
+        return
 
 def main():
     options = parse_args()
 
-    ride = gpx.read_gpx("/dev/stdin")
-    # For more straightforward access. The gpx module doesn't currently
-    # populate this attribute, just leaves it an empty list.
-    ride.wpt = ride.trk[0][0]
+    tree = ET.parse("/dev/stdin")
 
-    # elevate the cadence value to a top level attribute (hopefully will change
-    # at some point -- current extension gpx implementation is too low-level)
-    for wpt in ride.wpt:
-        for attr in wpt.extensions.elements[0]:
-            if attr.tag.endswith("cad"):
-                wpt.cad = int(attr.text)
-                break
+    # constant - compute just once
+    crank_circum = options.crank_length * 0.000001 * math.pi
+    dist_per_rev = crank_circum * options.gain_ratio
 
-    # km
-    crank_circum = options.crank * 0.000001 * math.pi
-    course = Course(options.course)
-    wpt1 = ride.wpt[0]
-    for wpt2 in ride.wpt[1:]:
-        # minutes
-        dt = (wpt2.time - wpt1.time).total_seconds() * 60
-        mean_cadence = (wpt2.cad + wpt1.cad) / 2
-        # revolutions per minute
-        revs = mean_cadence / dt
-        dist = revs * options.gain_ratio * crank_circum
-        (lat, long) = course.move(dist)
-        wpt2.lat = lat
-        wpt2.lon = long
-        wpt1 = wpt2
+    course = Course(options.course, dist_per_rev, options.verbose)
 
-    # have to undo the .wpt shortcut (again, hopefully this won't be necessary
-    # indefinitely). If not cleared, the entire list is written into the <xml>
-    # header, and not very beautifully.
-    ride.wpt = []
-    ride.write_gpx("/dev/stdout")
+    for trkpt in tree.iterfind(".//{*}trkpt"):
+        course.update_lat_long(trkpt)
 
+    print("""<?xml version="1.0" encoding="UTF-8"?>""")
+    tree.write(sys.stdout, encoding="unicode")
     return 0
 
 
