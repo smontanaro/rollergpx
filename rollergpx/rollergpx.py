@@ -65,6 +65,7 @@ class Course:
         self.last_stamp = EPOCH
         self.dist_per_rev = dist_per_rev
         self.nmoves = 0
+        self.total = 0.0
         self.verbose = verbose
 
         if not course_csv:
@@ -126,7 +127,8 @@ class Course:
                     if self.next == len(points):
                         if self.verbose:
                             print(f"end of course, next=={self.next},"
-                                  f" moves={self.nmoves}",
+                                  f" moves={self.nmoves},"
+                                  f" distance={self.total:.2f}km",
                                   file=sys.stderr)
                         if self.out_and_back:
                             # flip and go the other way
@@ -185,6 +187,7 @@ class Course:
         revs = mean_cadence / delta_t
         # km
         distance = revs * self.dist_per_rev
+        self.total += distance
         (trkpt.attrib["lat"],
          trkpt.attrib["lon"]) = self.move(distance)
 
@@ -207,6 +210,10 @@ def main():
 
     for trkpt in tree.iterfind(".//{*}trkpt"):
         course.update_lat_long(trkpt)
+
+    if options.verbose:
+        print(f"Total distance: {course.total:.2f}km",
+              file=sys.stderr)
 
     print("""<?xml version="1.0" encoding="UTF-8"?>""")
     ET.register_namespace("gpxtpx", "http://www.garmin.com/xmlschemas/TrackPointExtension/v1")
