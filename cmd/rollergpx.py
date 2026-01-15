@@ -194,6 +194,8 @@ def main():
         course.update_lat_long(trkpt)
 
     print("""<?xml version="1.0" encoding="UTF-8"?>""")
+    ET.register_namespace("gpxtpx", "http://www.garmin.com/xmlschemas/TrackPointExtension/v1")
+    ET.register_namespace("", "http://www.topografix.com/GPX/1/1")
     tree.write(sys.stdout, encoding="unicode")
     return 0
 
