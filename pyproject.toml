@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rollergpx"
-version = "0.4.0"
+version = "0.5.0"
 description = "Add distance details to a GPX file generated from a roller ride"
 authors = [
     { name = "Skip Montanaro", email = "skip.montanaro@gmail.com" },
@@ -20,8 +20,16 @@ dependencies = [
     "haversine",
 ]
 
+[tool.setuptools]
+    include-package-data = true
+
 [tool.setuptools.packages.find]
-include = ["rollergpx"]
+    where = ["."]
+    include = ["rollergpx"]
+    namespaces = false
+
+[tool.setuptools.package-data]
+    "rollergpx" = ["data/*.csv"]
 
 [project.scripts]
     rollergpx = "rollergpx.rollergpx:main"
