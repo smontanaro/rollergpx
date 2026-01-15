@@ -19,6 +19,8 @@ from haversine import haversine
 
 EPOCH = datetime.datetime.fromtimestamp(0)
 
+__all__ = ["Course"]
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Augment a GPX file with distance details",
@@ -44,7 +46,20 @@ def parse_args():
 
 
 class Course:
-    "Hold lat/long details of a course and progress through it."
+    """Hold lat/long details of a course and progress through it.
+
+    * course_csv - CSV file containing lat/long details for a course you will "ride"
+    * dist_per_rev - Distance (in km) per revolution of the cranks
+    * verbose - Display a bit of debugging output if True
+
+    Normal usage is to create a Course object, then repeatedly call its
+    update_lat_long with a series of <trkpt> elements from a GPX file, e.g.:
+
+    tree = ET.parse("/some/gpx/file")
+    for trkpt in tree.iterfind(".//{*}trkpt"):
+        course.update_lat_long(trkpt)
+
+    """
     def __init__(self, course_csv, dist_per_rev, verbose):
         self.last_cadence = 0
         self.last_stamp = EPOCH
