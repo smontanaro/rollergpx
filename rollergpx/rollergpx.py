@@ -202,8 +202,8 @@ def main():
 
     tree = ET.parse("/dev/stdin")
 
-    # constant - compute just once
-    crank_circum = options.crank_length * 0.000001 * math.pi
+    # constant - compute just once (crank length is the radius, so 2πr!)
+    crank_circum = 2 * options.crank_length * 0.000001 * math.pi
     dist_per_rev = crank_circum * options.gain_ratio
 
     course = Course(options.course, dist_per_rev, options.verbose)
