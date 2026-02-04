@@ -10,6 +10,7 @@ See README.md for more details.
 import argparse
 import csv
 import datetime
+import logging
 import math
 import sys
 import xml.etree.ElementTree as ET
@@ -18,6 +19,8 @@ import dateutil.parser
 from haversine import haversine
 
 EPOCH = datetime.datetime.fromtimestamp(0)
+
+LOGGER = logging.getLogger(__name__)
 
 __all__ = ["Course"]
 
@@ -50,7 +53,6 @@ class Course:
 
     * course_csv - CSV file containing lat/long details for a course you will "ride"
     * dist_per_rev - Distance (in km) per revolution of the cranks
-    * verbose - Display a bit of debugging output if True
 
     Normal usage is to create a Course object, then repeatedly call its
     update_lat_long with a series of <trkpt> elements from a GPX file, e.g.:
@@ -60,14 +62,13 @@ class Course:
         course.update_lat_long(trkpt)
 
     """
-    def __init__(self, course, dist_per_rev, verbose):
+    def __init__(self, course, dist_per_rev):
         self.points = course
         self.last_cadence = 0
         self.last_stamp = EPOCH
         self.dist_per_rev = dist_per_rev
         self.nmoves = 0
         self.total = 0.0
-        self.verbose = verbose
 
         # current position along the course (might be betweeen two fixed
         # points)
@@ -98,15 +99,11 @@ class Course:
                     self.current = pt2
                     self.next += 1
                     if self.next == len(points):
-                        if self.verbose:
-                            print(f"end of course, next=={self.next},"
-                                  f" moves={self.nmoves},"
-                                  f" distance={self.total:.2f}km",
-                                  file=sys.stderr)
+                        LOGGER.debug("end of course, next==%d, moves=%d, distance=%.2fkm",
+                                     self.next, self.nmoves, self.total)
                         if self.out_and_back:
                             # flip and go the other way
-                            if self.verbose:
-                                print("out and back", file=sys.stderr)
+                            LOGGER.debug("out and back")
                             self.points = list(reversed(self.points))
                         self.next = 0
                 else:
@@ -173,7 +170,7 @@ class Course:
         trkpt.attrib["lon"] = lon
 
     @classmethod
-    def from_csv(cls, course_csv, dist_per_rev, verbose=False):
+    def from_csv(cls, course_csv, dist_per_rev):
         if not course_csv:
             # no course data, give a default in Lake Michigan near Evanston
             course = [
@@ -200,10 +197,13 @@ class Course:
                         pt2 = (course[nxt]["lat"], course[nxt]["long"])
                         course[nxt]["dist"] = haversine(pt1, pt2)
                         cur = nxt
-        return cls(course, dist_per_rev, verbose)
+        return cls(course, dist_per_rev)
 
 def main():
     options = parse_args()
+
+    if options.verbose:
+        logging.basicConfig(level=logging.DEBUG)
 
     tree = ET.parse("/dev/stdin")
 
@@ -211,14 +211,12 @@ def main():
     crank_circum = 2 * options.crank_length * 0.000001 * math.pi
     dist_per_rev = crank_circum * options.gain_ratio
 
-    course = Course.from_csv(options.course, dist_per_rev, options.verbose)
+    course = Course.from_csv(options.course, dist_per_rev)
 
     for trkpt in tree.iterfind(".//{*}trkpt"):
         course.update_lat_long(trkpt)
 
-    if options.verbose:
-        print(f"Total distance: {course.total:.2f}km",
-              file=sys.stderr)
+    LOGGER.debug("Total distance: %.2fkm", course.total)
 
     print("""<?xml version="1.0" encoding="UTF-8"?>""")
     ET.register_namespace("gpxtpx", "http://www.garmin.com/xmlschemas/TrackPointExtension/v1")
