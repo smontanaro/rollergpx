@@ -151,9 +151,9 @@ class Course:
             self.last_cadence = cadence
             return 0.0
 
-        delta_t = (stamp - self.last_stamp).total_seconds() * 60
-        mean_cadence = (cadence + self.last_cadence) / 2
-        revs = mean_cadence / delta_t
+        delta_t = (stamp - self.last_stamp).total_seconds() / 60 # units = minutes
+        mean_cadence = (cadence + self.last_cadence) / 2    # units == rev per minute
+        revs = mean_cadence * delta_t                       # units = revolutions
         distance = revs * self.dist_per_rev
 
         self.last_stamp = stamp
