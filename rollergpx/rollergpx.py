@@ -22,6 +22,12 @@ EPOCH = datetime.datetime.fromtimestamp(0)
 
 LOGGER = logging.getLogger(__name__)
 
+# Default course in Lake Michigan to "ride" if the user doesn't specify one.
+DEFAULT_COURSE = [
+    {"lat": 42.04, "long": -87.65, "dist": 0.0},
+    {"lat": 42.06, "long": -87.65, "dist": 2.223901604671227},
+    ]
+
 __all__ = ["Course"]
 
 def parse_args():
@@ -172,11 +178,7 @@ class Course:
     @classmethod
     def from_csv(cls, course_csv, dist_per_rev):
         if not course_csv:
-            # no course data, give a default in Lake Michigan near Evanston
-            course = [
-                {"lat": 42.04, "long": -87.65, "dist": 0.0},
-                {"lat": 42.06, "long": -87.65, "dist": 2.223901604671227},
-                ]
+            course = DEFAULT_COURSE
         else:
             with open(course, encoding="utf-8") as course:
                 reader = csv.DictReader(course)
