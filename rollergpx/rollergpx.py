@@ -141,34 +141,36 @@ class Course:
             return child.text
         return ""
 
-    def update_lat_long(self, trkpt):
-        "adjust the lat long details for the trkpt arg."
-        stamp = self.timestamp(trkpt)
-        assert stamp
+    def compute_distance(self, stamp, cadence):
+        """given a timestamp and cadence, return distance in km."""
         if self.last_stamp == EPOCH:
-            # first time through
             self.last_stamp = stamp
-            self.last_cadence = self.cadence(trkpt)
-            (trkpt.attrib["lat"],
-             trkpt.attrib["lon"]) = (str(self.points[0]["lat"]),
-                                     str(self.points[0]["long"]))
-            return
+            self.last_cadence = cadence
+            return 0.0
 
-        cadence = self.cadence(trkpt)
         delta_t = (stamp - self.last_stamp).total_seconds() * 60
         mean_cadence = (cadence + self.last_cadence) / 2
         revs = mean_cadence / delta_t
-        # km
         distance = revs * self.dist_per_rev
-        self.total += distance
-        (trkpt.attrib["lat"],
-         trkpt.attrib["lon"]) = self.move(distance)
 
-        # set up for the next move
         self.last_stamp = stamp
         self.last_cadence = cadence
+        return distance
 
-        return
+    def update_lat_long(self, trkpt):
+        """Extract data from GPX element, compute, and update it."""
+        stamp = self.timestamp(trkpt)
+        cadence = self.cadence(trkpt)
+        distance = self.compute_distance(stamp, cadence)
+
+        if distance == 0.0 and self.nmoves == 0:
+            lat, lon = str(self.points[0]["lat"]), str(self.points[0]["long"])
+        else:
+            self.total += distance
+            lat, lon = self.move(distance)
+
+        trkpt.attrib["lat"] = lat
+        trkpt.attrib["lon"] = lon
 
     @classmethod
     def from_csv(cls, course_csv, dist_per_rev, verbose=False):
