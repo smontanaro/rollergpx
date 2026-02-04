@@ -60,41 +60,14 @@ class Course:
         course.update_lat_long(trkpt)
 
     """
-    def __init__(self, course_csv, dist_per_rev, verbose):
+    def __init__(self, course, dist_per_rev, verbose):
+        self.points = course
         self.last_cadence = 0
         self.last_stamp = EPOCH
         self.dist_per_rev = dist_per_rev
         self.nmoves = 0
         self.total = 0.0
         self.verbose = verbose
-
-        if not course_csv:
-            # no course data, give a default in Lake Michigan near Evanston
-            self.points = [
-                {"lat": 42.04, "long": -87.65, "dist": 0.0},
-                {"lat": 42.06, "long": -87.65, "dist": 2.223901604671227},
-                ]
-        else:
-            with open(course_csv, encoding="utf-8") as course:
-                reader = csv.DictReader(course)
-                self.points = list(reader)
-                # convert lat/long/dist to floats
-                for point in self.points:
-                    for key in ("lat", "long", "dist"):
-                        try:
-                            point[key] = float(point[key])
-                        except KeyError:
-                            pass
-                if "dist" not in reader.fieldnames:
-                    # populate the segment distances
-                    cur = 0
-                    points = self.points
-                    points[cur]["dist"] = 0.0
-                    for nxt in range(1, len(points)):
-                        pt1 = (points[cur]["lat"], points[cur]["long"])
-                        pt2 = (points[nxt]["lat"], points[nxt]["long"])
-                        points[nxt]["dist"] = haversine(pt1, pt2)
-                        cur = nxt
 
         # current position along the course (might be betweeen two fixed
         # points)
@@ -197,6 +170,36 @@ class Course:
 
         return
 
+    @classmethod
+    def from_csv(cls, course_csv, dist_per_rev, verbose=False):
+        if not course_csv:
+            # no course data, give a default in Lake Michigan near Evanston
+            course = [
+                {"lat": 42.04, "long": -87.65, "dist": 0.0},
+                {"lat": 42.06, "long": -87.65, "dist": 2.223901604671227},
+                ]
+        else:
+            with open(course, encoding="utf-8") as course:
+                reader = csv.DictReader(course)
+                course = list(reader)
+                # convert lat/long/dist to floats
+                for point in course:
+                    for key in ("lat", "long", "dist"):
+                        try:
+                            point[key] = float(point[key])
+                        except KeyError:
+                            pass
+                if "dist" not in reader.fieldnames:
+                    # populate the segment distances
+                    cur = 0
+                    course[cur]["dist"] = 0.0
+                    for nxt in range(1, len(course)):
+                        pt1 = (course[cur]["lat"], course[cur]["long"])
+                        pt2 = (course[nxt]["lat"], course[nxt]["long"])
+                        course[nxt]["dist"] = haversine(pt1, pt2)
+                        cur = nxt
+        return cls(course, dist_per_rev, verbose)
+
 def main():
     options = parse_args()
 
@@ -206,7 +209,7 @@ def main():
     crank_circum = 2 * options.crank_length * 0.000001 * math.pi
     dist_per_rev = crank_circum * options.gain_ratio
 
-    course = Course(options.course, dist_per_rev, options.verbose)
+    course = Course.from_csv(options.course, dist_per_rev, options.verbose)
 
     for trkpt in tree.iterfind(".//{*}trkpt"):
         course.update_lat_long(trkpt)
