@@ -9,6 +9,7 @@ See README.md for more details.
 
 import argparse
 import csv
+from dataclasses import dataclass
 import datetime
 import logging
 import math
@@ -22,13 +23,8 @@ EPOCH = datetime.datetime.fromtimestamp(0)
 
 LOGGER = logging.getLogger(__name__)
 
-# Default course in Lake Michigan to "ride" if the user doesn't specify one.
-DEFAULT_COURSE = [
-    {"lat": 42.04, "long": -87.65, "dist": 0.0},
-    {"lat": 42.06, "long": -87.65, "dist": 2.223901604671227},
-    ]
-
 __all__ = ["Course"]
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -54,6 +50,32 @@ def parse_args():
     return parser.parse_args()
 
 
+@dataclass
+class CadenceDetail:
+    "Last cadence & time measurement dredged from the GPX file"
+    cadence: int
+    stamp: datetime.datetime
+
+
+@dataclass
+class PositionDetail:
+    "Current position on the course and index of next position"
+    # current position along the course (might be betweeen two fixed
+    # points)
+    lat: float
+    long: float
+    def as_tuple(self):
+        return (self.lat, self.long)
+    def as_str_tuple(self):
+        return (str(self.lat), str(self.long))
+
+# Default course in Lake Michigan to "ride" if the user doesn't specify one.
+DEFAULT_COURSE = [
+    PositionDetail(lat=42.04, long=-87.65),
+    PositionDetail(lat=42.06, long=-87.65),
+    ]
+
+
 class Course:
     """Hold lat/long details of a course and progress through it.
 
@@ -70,22 +92,19 @@ class Course:
     """
     def __init__(self, course, dist_per_rev):
         self.points = course
-        self.last_cadence = 0
-        self.last_stamp = EPOCH
+        self.last = CadenceDetail(cadence=0, stamp=EPOCH)
         self.dist_per_rev = dist_per_rev
         self.nmoves = 0
         self.total = 0.0
+        self.current = course[0]
 
-        # current position along the course (might be betweeen two fixed
-        # points)
-        self.current = (self.points[0]["lat"], self.points[0]["long"])
         # index of next fixed point along the course
         self.next = 1
 
-        # A course is deemed "out and back" if the distance between first
-        # and last points is at least one kilometer.
-        last = (self.points[-1]["lat"], self.points[-1]["long"])
-        self.out_and_back = haversine(self.current, last) >= 1
+        # A course is deemed (somewhat arbitrarily) "out and back" if the
+        # distance between first and last points is at least one kilometer.
+        self.out_and_back = haversine(self.points[0].as_tuple(),
+            self.points[-1].as_tuple()) >= 1.0
 
     def move(self, distance):
         "Move along the course by the given distance (km)."
@@ -93,112 +112,96 @@ class Course:
         # new position
         self.nmoves += 1
         if distance:
-            points = self.points
             while distance:
                 pt1 = self.current
-                pt2 = (points[self.next]["lat"], points[self.next]["long"])
-                next_waypoint = haversine(pt1, pt2)
+                pt2 = self.points[self.next]
+                next_waypoint = haversine(self.current.as_tuple(), pt2.as_tuple())
                 if next_waypoint <= distance:
                     # remaining distance at least reaches pt2. Adjust and
                     # continue.
                     distance -= next_waypoint
                     self.current = pt2
                     self.next += 1
-                    if self.next == len(points):
+                    if self.next == len(self.points):
                         LOGGER.debug("end of course, next==%d, moves=%d, distance=%.2fkm",
                                      self.next, self.nmoves, self.total)
                         if self.out_and_back:
                             # flip and go the other way
                             LOGGER.debug("out and back")
-                            self.points = list(reversed(self.points))
+                            self.points = self.points[::-1]
                         self.next = 0
                 else:
                     # distance from pt1 to pt2 is greater than the remaining
                     # distance. Adjust our current position to that fractional
-                    # distance, but don't advance self.next, then return.
+                    # distance, but don't advance the next fixed point index.
                     frac = distance / next_waypoint
                     assert 0.0 < frac <= 1.0
                     distance = 0
-                    clat = pt1[0] + (pt2[0] - pt1[0]) * frac
-                    clon = pt1[1] + (pt2[1] - pt1[1]) * frac
-                    self.current = (clat, clon)
+                    clat = pt1.lat + (pt2.lat - pt1.lat) * frac
+                    clon = pt1.long + (pt2.long - pt1.long) * frac
+                    self.current = PositionDetail(lat=clat, long=clon)
 
-        return [str(x) for x in self.current]
+        return self.current
 
-    def cadence(self, trkpt):
+    def extract_cadence(self, trkpt):
         cadence = 0
-        cadstr = self._child_tag_text(trkpt, "cad").strip()
+        cadstr = self.child_tag_text(trkpt, "cad").strip()
         if cadstr:
             cadence = int(cadstr)
-        return cadence
-
-    def timestamp(self, trkpt):
         dt = EPOCH
-        dtstr = self._child_tag_text(trkpt, "time").strip()
+        dtstr = self.child_tag_text(trkpt, "time").strip()
         if dtstr:
             dt = dateutil.parser.parse(dtstr)
-        return dt
+        return CadenceDetail(cadence=cadence, stamp=dt)
 
-    def _child_tag_text(self, trkpt, tag):
+    def child_tag_text(self, trkpt, tag):
         for child in trkpt.iterfind(f".//{{*}}{tag}"):
             return child.text
         return ""
 
-    def compute_distance(self, stamp, cadence):
+    def compute_distance(self, detail):
         """given a timestamp and cadence, return distance in km."""
-        if self.last_stamp == EPOCH:
-            self.last_stamp = stamp
-            self.last_cadence = cadence
-            return 0.0
-
-        delta_t = (stamp - self.last_stamp).total_seconds() / 60 # units = minutes
-        mean_cadence = (cadence + self.last_cadence) / 2    # units == rev per minute
-        revs = mean_cadence * delta_t                       # units = revolutions
-        distance = revs * self.dist_per_rev
-
-        self.last_stamp = stamp
-        self.last_cadence = cadence
+        if self.last.stamp == EPOCH:
+            distance = 0.0
+        else:
+            # units = minutes
+            delta_t = (detail.stamp - self.last.stamp).total_seconds() / 60
+            # units == rev per minute
+            mean_cadence = (detail.cadence + self.last.cadence) / 2
+            # units = revolutions
+            revs = mean_cadence * delta_t
+            distance = revs * self.dist_per_rev
+        self.last = detail
         return distance
 
     def update_lat_long(self, trkpt):
         """Extract data from GPX element, compute, and update it."""
-        stamp = self.timestamp(trkpt)
-        cadence = self.cadence(trkpt)
-        distance = self.compute_distance(stamp, cadence)
+        detail = self.extract_cadence(trkpt)
+        distance = self.compute_distance(detail)
 
         if distance == 0.0 and self.nmoves == 0:
-            lat, lon = str(self.points[0]["lat"]), str(self.points[0]["long"])
+            (lat, long) = self.points[0].as_str_tuple()
         else:
             self.total += distance
-            lat, lon = self.move(distance)
+            (lat, long) = self.move(distance).as_str_tuple()
 
         trkpt.attrib["lat"] = lat
-        trkpt.attrib["lon"] = lon
+        trkpt.attrib["lon"] = long
 
     @classmethod
     def from_csv(cls, course_csv, dist_per_rev):
         if not course_csv:
             course = DEFAULT_COURSE
         else:
-            with open(course, encoding="utf-8") as course:
+            with open(course_csv, encoding="utf-8") as course:
                 reader = csv.DictReader(course)
-                course = list(reader)
-                # convert lat/long/dist to floats
-                for point in course:
-                    for key in ("lat", "long", "dist"):
-                        try:
-                            point[key] = float(point[key])
-                        except KeyError:
-                            pass
-                if "dist" not in reader.fieldnames:
-                    # populate the segment distances
-                    cur = 0
-                    course[cur]["dist"] = 0.0
-                    for nxt in range(1, len(course)):
-                        pt1 = (course[cur]["lat"], course[cur]["long"])
-                        pt2 = (course[nxt]["lat"], course[nxt]["long"])
-                        course[nxt]["dist"] = haversine(pt1, pt2)
-                        cur = nxt
+                course = []
+                for coord in reader:
+                    # convert lat/long to floats
+                    point = PositionDetail(lat=float(coord["lat"]),
+                        long=float(coord["long"]))
+                    course.append(point)
+        assert len(course) >= 2, "defined course must have at least two points"
         return cls(course, dist_per_rev)
 
 def main():
