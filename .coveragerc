@@ -1,7 +1,5 @@
 [run]
 branch = True
-source = rollergpx/rollergpx
-         scripts
 
 [report]
 show_missing = 1
