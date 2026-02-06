@@ -77,6 +77,12 @@ class TestMove:
         assert course.next == 2
         assert course.current.lat > 0.01
 
+    def test_zero_distance_move(self):
+        course = self.make_simple_course()
+        course.move(0.0)  # more than first segment
+        assert course.next == 1
+        assert course.current.lat == 0.0
+
     def test_move_wraps_on_loop_course(self):
         """A loop course (start ≈ end) should wrap around."""
         points = [
