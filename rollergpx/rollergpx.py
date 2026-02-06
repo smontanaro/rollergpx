@@ -90,6 +90,7 @@ class Course:
         course.update_lat_long(trkpt)
 
     """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, course, dist_per_rev):
         self.points = course
         self.last = CadenceDetail(cadence=0, stamp=EPOCH)
@@ -115,7 +116,7 @@ class Course:
             while distance:
                 pt1 = self.current
                 pt2 = self.points[self.next]
-                next_waypoint = haversine(self.current.as_tuple(), pt2.as_tuple())
+                next_waypoint = haversine(pt1.as_tuple(), pt2.as_tuple())
                 if next_waypoint <= distance:
                     # remaining distance at least reaches pt2. Adjust and
                     # continue.
