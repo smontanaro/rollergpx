@@ -2,8 +2,7 @@ VENVDIR = ./venv
 
 .PHONY: test
 test : virtualenv
-	. $(VENVDIR)/bin/activate && pytest --cov=rollergpx --cov-report=html
-	. $(VENVDIR)/bin/activate && bash scripts/test.sh
+	. $(VENVDIR)/bin/activate && bash scripts/test.sh -c
 
 .PHONY: virtualenv
 virtualenv : $(VENVDIR)
@@ -23,3 +22,10 @@ $(VENVDIR) : rollergpx/rollergpx.py rollergpx/gpxtolatlong.py pyproject.toml
 	  exit 1 ; \
 	fi
 	touch $(VENVDIR)
+
+.PHONY : clean
+clean : FORCE
+	rm -rf venv dist rollergpx.egg-info .coverage .pytest_cache htmlcov
+
+.PHONY : FORCE
+FORCE :
