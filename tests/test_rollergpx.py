@@ -1,12 +1,15 @@
-### TO-DO : Claude wrote this! At the moment, I still need to check its work.
+"unit tests for rollergpx"
 
 # test_rollergpx.py
 import datetime
+import xml.etree.ElementTree as ET
+
 import pytest
+
 from rollergpx.rollergpx import (
-    Course, CadenceDetail, PositionDetail, DEFAULT_COURSE, EPOCH
+    Course, CadenceDetail, PositionDetail, DEFAULT_COURSE
 )
-from tests import close
+from tests import close, TSTGPX, EPOCH
 
 
 class TestComputeDistance:
@@ -49,6 +52,16 @@ class TestComputeDistance:
         dist = course.compute_distance(CadenceDetail(cadence=0, stamp=t1))
 
         assert dist == 0.0
+
+    def test_missing_timestamp(self):
+        course = Course(DEFAULT_COURSE, dist_per_rev=0.001)
+        with open(TSTGPX, encoding="utf-8") as infile:
+            tree = ET.parse(infile)
+            for trkpt in tree.iterfind(".//{*}trkpt"):
+                for tag in trkpt.iterfind(".//{*}time"):
+                    trkpt.remove(tag)
+                    detail = course.extract_cadence(trkpt)
+                    assert detail.stamp == EPOCH
 
 
 class TestMove:
@@ -105,6 +118,8 @@ class TestMove:
 
 
 class TestOutAndBack:
+    """test out-and-back course"""
+
     def test_out_and_back_detected(self):
         """Course with distant endpoints is out-and-back."""
         points = [
@@ -126,6 +141,7 @@ class TestOutAndBack:
 
 
 class TestFromCsv:
+    """test csv file reading"""
     def test_empty_path_uses_default(self):
         course = Course.from_csv("", dist_per_rev=0.001)
         assert course.points == DEFAULT_COURSE

@@ -1,13 +1,14 @@
+"simple(minded) test for the gpx to latlong script"
+
 import xml.etree.ElementTree as ET
 
 from haversine import haversine
 from rollergpx.gpxtolatlong import process_tree
-from tests import close
+from tests import close, TSTGPX
 
-INFILE = "./scripts/short.gpx"
 
 def test_process():
-    with open(INFILE, encoding="utf-8") as infile:
+    with open(TSTGPX, encoding="utf-8") as infile:
         tree = ET.parse(infile)
         records = process_tree(tree)
         pt0 = (records[-2]["lat"], records[-2]["long"])
