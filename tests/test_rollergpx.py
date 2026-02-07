@@ -6,6 +6,7 @@ import pytest
 from rollergpx.rollergpx import (
     Course, CadenceDetail, PositionDetail, DEFAULT_COURSE, EPOCH
 )
+from tests import close
 
 
 class TestComputeDistance:
@@ -25,7 +26,7 @@ class TestComputeDistance:
         course.compute_distance(CadenceDetail(cadence=60, stamp=t0))
         dist = course.compute_distance(CadenceDetail(cadence=60, stamp=t1))
 
-        assert abs(dist - 0.060) < 1e-9  # 60 revs * 0.001 km/rev
+        assert close(dist, 0.060)      # 60 revs * 0.001 km/rev
 
     def test_varying_cadence_uses_mean(self):
         """Cadence changing from 60 to 80 should use mean of 70."""
@@ -36,7 +37,7 @@ class TestComputeDistance:
         course.compute_distance(CadenceDetail(cadence=60, stamp=t0))
         dist = course.compute_distance(CadenceDetail(cadence=80, stamp=t1))
 
-        assert abs(dist - 0.070) < 1e-9  # 70 revs * 0.001 km/rev
+        assert close(dist, 0.070)       # 70 revs * 0.001 km/rev
 
     def test_zero_cadence(self):
         """Zero cadence for the interval means no distance."""
