@@ -28,33 +28,40 @@ def parse_args():
     return parser.parse_args()
 
 
+def process_tree(tree):
+    "Extract details from the ElementTree"
+
+    records = []
+    dist = 0.0
+    lastpt = ()
+    for trkpt in tree.iterfind(".//{*}trkpt"):
+        thispt = (float(trkpt.attrib["lat"]), float(trkpt.attrib["lon"]))
+        if thispt == lastpt:
+            # The GPX file for the velodrome course I created in RwGPS
+            # appears to duplicate all the points. ¯\_(ツ)_/¯
+            continue
+        if lastpt:
+            dist = haversine(thispt, lastpt, unit=Unit.KILOMETERS)
+        lastpt = thispt
+        records.append({"lat": thispt[0],
+                        "long": thispt[1],
+                        "dist": dist})
+    return records
+
+
 def main():
     options = parse_args()
 
     with open(options.infile, encoding="utf-8") as infile:
         tree = ET.parse(infile)
+        records = process_tree(tree)
 
-    tot = 0.0
-    dist = 0.0
     with open(options.outfile, "w", encoding="utf-8") as outfile:
         writer = csv.DictWriter(outfile, fieldnames="lat long dist".split())
         writer.writeheader()
+        writer.writerows(records)
 
-        lastpt = ()
-        for trkpt in tree.iterfind(".//{*}trkpt"):
-            thispt = (float(trkpt.attrib["lat"]), float(trkpt.attrib["lon"]))
-            if thispt == lastpt:
-                # The GPX file for the velodrome course I created in RwGPS
-                # appears to duplicate all the points. ¯\_(ツ)_/¯
-                continue
-            if lastpt:
-                dist = haversine(thispt, lastpt, unit=Unit.KILOMETERS)
-                tot += dist
-            lastpt = thispt
-            writer.writerow({"lat": thispt[0],
-                            "long": thispt[1],
-                            "dist": dist})
-
+    tot = sum(x["dist"] for x in records)
     print(f"total distance: {tot:.2f}km", file=sys.stderr)
     return 0
 
