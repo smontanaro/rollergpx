@@ -25,7 +25,8 @@ $(VENVDIR) : rollergpx/rollergpx.py rollergpx/gpxtolatlong.py pyproject.toml
 
 .PHONY : clean
 clean : FORCE
-	rm -rf venv dist rollergpx.egg-info .coverage .pytest_cache htmlcov
+	rm -rf venv dist rollergpx.egg-info .coverage .pytest_cache
+	rm -rf htmlcov .tox build .ruff_cache
 
 .PHONY : FORCE
 FORCE :
